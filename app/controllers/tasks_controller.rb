@@ -1,7 +1,13 @@
 class TasksController < ApplicationController
   before_action :set_task, only: [:show, :edit, :update, :destroy ]
   def index
-    @tasks = current_user.tasks.order(created_at: :desc)
+    @q = current_user.tasks.ransack(params[:q])
+    @tasks = @q.result(distinct: true)
+
+    respond_to do |format|
+      format.html
+      format.csv { send_data @tasks.generate_csv, filename: "tasks-#{Time.zone.now.strftime("%Y%m%d%S")}.csv"}
+    end
   end
 
   def show
@@ -26,6 +32,7 @@ class TasksController < ApplicationController
     end
 
     if @task.save
+      TaskMailer.creation_email(@task).deliver_now
       logger.debug "task:#{@task.attributes.inspect}"
       redirect_to @task, notice: "タスク「#{@task.name}」を登録しました。"
     else
@@ -51,7 +58,7 @@ class TasksController < ApplicationController
 
   private
   def task_params
-    params.require(:task).permit(:name, :decription)
+    params.require(:task).permit(:name, :decription, :image)
   end
 
   def set_task
